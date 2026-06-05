@@ -3,149 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>스티커 설문조사</title>
+    <title>실시간 멀티플레이 총싸움 게임</title>
     <style>
         body {
+            margin: 0;
+            background-color: #222;
+            color: white;
             font-family: 'Malgun Gothic', sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            margin: 0;
-            background-color: #e0e0e0;
+            overflow: hidden;
             user-select: none;
-            -webkit-user-select: none;
         }
-
-        /* 길거리 이젤 보드판 */
-        .board {
-            background-color: #fffde7;
-            border: 12px solid #5d4037;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
-            width: 700px;
-            height: 450px;
-            padding: 20px;
-            text-align: center;
-            box-sizing: border-box;
-        }
-
-        .board-title {
-            font-size: 22px;
-            font-weight: bold;
-            color: #333;
-            border-bottom: 3px dashed #5d4037;
-            padding-bottom: 10px;
-            margin: 0 0 15px 0;
-        }
-
-        /* 스티커가 붙는 전용 패널 */
-        .sticker-panel {
-            display: flex;
-            height: 320px;
-            position: relative;
-            box-sizing: border-box;
-        }
-
-        .column {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding-top: 10px;
-            pointer-events: none;
-        }
-
-        .column:first-child {
-            border-right: 2px dashed #a1887f;
-        }
-
-        .column-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #555;
-            margin-bottom: 10px;
-        }
-
-        /* 하단 스티커 공급처 */
-        .sticker-dispenser {
-            display: flex;
-            justify-content: space-around;
-            width: 500px;
-            margin-top: 25px;
-            background: #fff;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            box-sizing: border-box;
-        }
-
-        .dispenser-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: bold;
-            color: #555;
-            width: 100%;
-        }
-
-        /* 스티커 기본 스타일 */
-        .sticker {
-            width: 35px;
-            height: 35px;
-            border-radius: 50%;
-            cursor: grab;
-            box-shadow: 2px 3px 5px rgba(0,0,0,0.2);
-            box-sizing: border-box;
-            background-color: #ffeb3b; 
-            border: 2px solid #fbc02d;
-            touch-action: none; /* 모바일 브라우저 스크롤 간섭 방지 */
-        }
-
-        /* 드래그 중인 스티커 */
-        .floating-sticker {
-            position: fixed;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 1000;
-        }
-
-        /* 투표판에 고정된 스티커 */
-        .placed-sticker {
-            position: absolute;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
+        h1 { margin: 5px 0; font-size: 24px; }
+        #status { font-size: 16px; color: #ffeb3b; margin-bottom: 10px; font-weight: bold; }
+        .info { font-size: 14px; color: #aaa; margin-bottom: 10px; }
+        canvas {
+            background-color: #111;
+            border: 4px solid #444;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
         }
     </style>
 </head>
 <body>
 
-    <div class="board">
-        <h1 class="board-title">평생 하나만 먹는다면?<br>매일 짜장면 vs 매일 짬뽕</h1>
-        
-        <div class="sticker-panel" id="stickerPanel">
-            <div class="column">
-                <div class="column-title">완벽한 짜장</div>
-            </div>
-            <div class="column">
-                <div class="column-title">얼큰한 짬뽕</div>
-            </div>
-        </div>
-    </div>
+    <h1>💥 REALTIME SHOWDOWN 💥</h1>
+    <div id="status">서버 연결 중...</div>
+    <div class="info">이동: 방향키(▲▼◀▶) 또는 WASD | 발사: Spacebar 또는 Enter</div>
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
 
-    <div class="sticker-dispenser">
-        <div class="dispenser-box">
-            <span>스티커를 마우스로 꾹 눌러서 원하는 쪽에 붙여주세요!</span>
-            <div class="sticker" onmousedown="startSticky(event)" ontouchstart="startSticky(event)"></div>
-        </div>
-    </div>
-<script type="module">
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, set, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // 찾으신 실제 파이어베이스 설정값 적용 완료!
+        // 사용자의 실제 파이어베이스 설정값
         const firebaseConfig = {
             apiKey: "AIzaSyDaU42SyXM_k_Bm0qwADH-MqWnTeLbXCD0",
             authDomain: "dfdsfdsfd-18525.firebaseapp.com",
@@ -157,85 +51,207 @@
             measurementId: "G-GG10ZTPMEQ"
         };
 
-        // 파이어베이스 초기화
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
-        const stickersRef = ref(database, 'stickers'); 
+        
+        // 내 세션 ID 생성 (유저 구별용 무작위 ID)
+        const myId = "user_" + Math.random().toString(36).substr(2, 9);
+        let myRole = null; // 'p1' 또는 'p2' 결정될 예정
 
-        const panel = document.getElementById('stickerPanel');
-        let currentSticker = null;
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
 
-        function getClientXY(e) {
-            if (e.touches && e.touches.length > 0) {
-                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-            }
-            return { x: e.clientX, y: e.clientY };
-        }
+        const keys = {};
+        let playersData = {};
+        let localBullets = [];
+        const bulletSpeed = 7;
+        const shootDelay = 400;
+        let lastShotTime = 0;
 
-        window.startSticky = function(e) {
-            e.preventDefault();
-            const coords = getClientXY(e);
+        // 키 입력 리스너
+        window.addEventListener('keydown', e => { keys[e.code] = true; });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-            currentSticker = document.createElement('div');
-            currentSticker.classList.add('sticker', 'floating-sticker');
-            currentSticker.style.left = coords.x + 'px';
-            currentSticker.style.top = coords.y + 'px';
-            
-            document.body.appendChild(currentSticker);
+        // 1. 서버에서 플레이어 참가 상황 감시 및 내 역할(P1, P2) 결정
+        const playersRef = ref(database, 'game/players');
+        onValue(playersRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            playersData = data;
 
-            document.addEventListener('mousemove', moveSticky);
-            document.addEventListener('mouseup', dropSticky);
-            document.addEventListener('touchmove', moveSticky, { passive: false });
-            document.addEventListener('touchend', dropSticky);
-        }
+            // 이미 내가 등록되어 있는지 확인
+            const slots = Object.keys(data);
+            const myExistingSlot = slots.find(slot => data[slot].id === myId);
 
-        function moveSticky(e) {
-            if (!currentSticker) return;
-            if (e.cancelable) e.preventDefault(); 
-            
-            const coords = getClientXY(e);
-            currentSticker.style.left = coords.x + 'px';
-            currentSticker.style.top = coords.y + 'px';
-        }
-
-        function dropSticky(e) {
-            if (!currentSticker) return;
-
-            const stickerLeft = parseFloat(currentSticker.style.left);
-            const stickerTop = parseFloat(currentSticker.style.top);
-
-            const rect = panel.getBoundingClientRect();
-            const x = stickerLeft - rect.left;
-            const y = stickerTop - rect.top;
-
-            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                push(stickersRef, {
-                    x: x,
-                    y: y
-                });
+            if (myExistingSlot) {
+                myRole = myExistingSlot;
+            } else if (!data['p1']) {
+                // P1 자리가 비었으면 내가 P1
+                myRole = 'p1';
+                set(ref(database, 'game/players/p1'), { id: myId, x: 100, y: 225, hp: 100, dir: 1, color: '#00d2ff' });
+            } else if (!data['p2']) {
+                // P2 자리가 비었으면 내가 P2
+                myRole = 'p2';
+                set(ref(database, 'game/players/p2'), { id: myId, x: 700, y: 225, hp: 100, dir: -1, color: '#ff3366' });
+            } else {
+                myRole = 'spectator'; // 자리가 꽉 차면 관전자
             }
 
-            currentSticker.remove();
-            currentSticker = null;
-
-            document.removeEventListener('mousemove', moveSticky);
-            document.removeEventListener('mouseup', dropSticky);
-            document.removeEventListener('touchmove', moveSticky);
-            document.removeEventListener('touchend', dropSticky);
-        }
-
-        // 실시간으로 DB에 스티커 추가되면 내 화면 포함 모두에게 그리기
-        onChildAdded(stickersRef, (snapshot) => {
-            const data = snapshot.val();
-            
-            const placedSticker = document.createElement('div');
-            placedSticker.classList.add('sticker', 'placed-sticker');
-            placedSticker.style.left = data.x + 'px';
-            placedSticker.style.top = data.y + 'px';
-            
-            panel.appendChild(placedSticker);
+            // 상단 텍스트 표시 업데이트
+            if (myRole === 'p1') statusEl.innerText = "당신은 🔵 1P (Blue) 입니다. 상대방을 기다리는 중...";
+            if (myRole === 'p2') statusEl.innerText = "당신은 🔴 2P (Red) 입니다. 게임 시작!";
+            if (data['p1'] && data['p2']) {
+                if (myRole !== 'spectator') statusEl.innerText = `전투 중! (내 체력: ${data[myRole].hp})`;
+                else statusEl.innerText = "방이 가득 찼습니다. 관전 중...";
+            }
         });
-    </script>
 
+        // 창을 닫으면 데이터베이스에서 내 캐릭터 삭제
+        window.addEventListener('beforeunload', () => {
+            if (myRole && myRole !== 'spectator') {
+                set(ref(database, `game/players/${myRole}`), null);
+            }
+        });
+
+        // 2. 실시간 총알 생성 이벤트 수신
+        const bulletsRef = ref(database, 'game/bullets');
+        onChildAdded(bulletsRef, (snapshot) => {
+            const b = snapshot.val();
+            localBullets.push(b);
+        });
+
+        // 총알 발사 등록
+        function fireBullet() {
+            if (!myRole || myRole === 'spectator' || !playersData['p1'] || !playersData['p2']) return;
+            const now = Date.now();
+            if (now - lastShotTime > shootDelay) {
+                const me = playersData[myRole];
+                if (me.hp <= 0) return;
+
+                // 서버로 총알 정보 쏘기
+                push(bulletsRef, {
+                    x: me.x + (20 * me.dir),
+                    y: me.y,
+                    dir: me.dir,
+                    owner: myRole,
+                    color: me.color
+                });
+                lastShotTime = now;
+            }
+        }
+
+        // 게임 핵심 로직 업데이트
+        function update() {
+            if (!myRole || myRole === 'spectator' || !playersData[myRole]) return;
+            
+            const me = playersData[myRole];
+            if (me.hp <= 0) return;
+
+            let moved = false;
+
+            // 이동 제어 (WASD 또는 방향키 통합)
+            if (keys['KeyW'] || keys['ArrowUp']) { if (me.y - 20 > 0) { me.y -= 4; moved = true; } }
+            if (keys['KeyS'] || keys['ArrowDown']) { if (me.y + 20 < canvas.height) { me.y += 4; moved = true; } }
+            if (keys['KeyA'] || keys['ArrowLeft']) { if (me.x - 20 > 0) { me.x -= 4; me.dir = -1; moved = true; } }
+            if (keys['KeyD'] || keys['ArrowRight']) { if (me.x + 20 < canvas.width) { me.x += 4; me.dir = 1; moved = true; } }
+            
+            // 총쏘기 제어 (스페이스바 또는 엔터)
+            if (keys['Space'] || keys['Enter']) {
+                fireBullet();
+            }
+
+            // 내가 움직였을 때만 실시간으로 파이어베이스 좌표 갱신
+            if (moved) {
+                set(ref(database, `game/players/${myRole}`), me);
+            }
+
+            // 총알 이동 및 충돌 연산 (P1 화면에서만 대표로 계산하여 데미지 적용)
+            if (myRole === 'p1' && playersData['p2']) {
+                for (let i = localBullets.length - 1; i >= 0; i--) {
+                    const b = localBullets[i];
+                    
+                    // 1P 총알이 2P에게 맞았나 확인
+                    if (b.owner === 'p1') {
+                        let dist = Math.hypot(b.x - playersData['p2'].x, b.y - playersData['p2'].y);
+                        if (dist < 20 && playersData['p2'].hp > 0) {
+                            set(ref(database, 'game/players/p2/hp'), Math.max(0, playersData['p2'].hp - 10));
+                            localBullets.splice(i, 1);
+                            continue;
+                        }
+                    }
+                    // 2P 총알이 1P에게 맞았나 확인
+                    if (b.owner === 'p2') {
+                        let dist = Math.hypot(b.x - playersData['p1'].x, b.y - playersData['p1'].y);
+                        if (dist < 20 && playersData['p1'].hp > 0) {
+                            set(ref(database, 'game/players/p1/hp'), Math.max(0, playersData['p1'].hp - 10));
+                            localBullets.splice(i, 1);
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            // 게임 오버 체크 (리셋)
+            if (playersData['p1'] && playersData['p2']) {
+                if (playersData['p1'].hp <= 0 || playersData['p2'].hp <= 0) {
+                    const winner = playersData['p1'].hp <= 0 ? "2P (Red)" : "1P (Blue)";
+                    alert(`🎉 ${winner} 승리! 게임을 재시작합니다.`);
+                    // DB 리셋
+                    set(ref(database, 'game'), null);
+                    localBullets = [];
+                }
+            }
+        }
+
+        // 화면 그리기
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 총알들 이동 및 그리기
+            for (let i = localBullets.length - 1; i >= 0; i--) {
+                const b = localBullets[i];
+                b.x += b.dir * bulletSpeed;
+
+                if (b.x < 0 || b.x > canvas.width) {
+                    localBullets.splice(i, 1);
+                    continue;
+                }
+
+                ctx.fillStyle = b.color;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // 플레이어들 그리기
+            Object.keys(playersData).forEach(slot => {
+                const p = playersData[slot];
+                if (p.hp <= 0) return;
+
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 조준점 흰색 도트
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(p.x + (20 * p.dir) - 2, p.y - 2, 4, 4);
+
+                // 체력바 표시
+                ctx.fillStyle = '#555';
+                ctx.fillRect(p.x - 20, p.y - 32, 40, 6);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - 20, p.y - 32, 40 * (p.hp / 100), 6);
+            });
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
 </body>
 </html>
