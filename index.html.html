@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스티커 설문조사</title>
+    <style>
+        body {
+            font-family: 'Malgun Gothic', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #e0e0e0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* 길거리 이젤 보드판 */
+        .board {
+            background-color: #fffde7;
+            border: 12px solid #5d4037;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.3);
+            width: 700px;
+            height: 450px;
+            padding: 20px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        .board-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 3px dashed #5d4037;
+            padding-bottom: 10px;
+            margin: 0 0 15px 0;
+        }
+
+        /* 스티커가 붙는 전용 패널 */
+        .sticker-panel {
+            display: flex;
+            height: 320px;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+            pointer-events: none;
+        }
+
+        .column:first-child {
+            border-right: 2px dashed #a1887f;
+        }
+
+        .column-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        /* 하단 스티커 공급처 */
+        .sticker-dispenser {
+            display: flex;
+            justify-content: space-around;
+            width: 500px;
+            margin-top: 25px;
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-sizing: border-box;
+        }
+
+        .dispenser-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #555;
+            width: 100%;
+        }
+
+        /* 스티커 기본 스타일 */
+        .sticker {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            cursor: grab;
+            box-shadow: 2px 3px 5px rgba(0,0,0,0.2);
+            box-sizing: border-box;
+            background-color: #ffeb3b; 
+            border: 2px solid #fbc02d;
+            touch-action: none; /* 모바일 브라우저 스크롤 간섭 방지 */
+        }
+
+        /* 드래그 중인 스티커 */
+        .floating-sticker {
+            position: fixed;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        /* 투표판에 고정된 스티커 */
+        .placed-sticker {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="board">
+        <h1 class="board-title">평생 하나만 먹는다면?<br>매일 짜장면 vs 매일 짬뽕</h1>
+        
+        <div class="sticker-panel" id="stickerPanel">
+            <div class="column">
+                <div class="column-title">완벽한 짜장</div>
+            </div>
+            <div class="column">
+                <div class="column-title">얼큰한 짬뽕</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="sticker-dispenser">
+        <div class="dispenser-box">
+            <span>스티커를 마우스로 꾹 눌러서 원하는 쪽에 붙여주세요!</span>
+            <div class="sticker" onmousedown="startSticky(event)" ontouchstart="startSticky(event)"></div>
+        </div>
+    </div>
+<script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // 찾으신 실제 파이어베이스 설정값 적용 완료!
+        const firebaseConfig = {
+            apiKey: "AIzaSyDaU42SyXM_k_Bm0qwADH-MqWnTeLbXCD0",
+            authDomain: "dfdsfdsfd-18525.firebaseapp.com",
+            databaseURL: "https://dfdsfdsfd-18525-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "dfdsfdsfd-18525",
+            storageBucket: "dfdsfdsfd-18525.firebasestorage.app",
+            messagingSenderId: "800852256342",
+            appId: "1:800852256342:web:cf57a4808d44d0596ffdf7",
+            measurementId: "G-GG10ZTPMEQ"
+        };
+
+        // 파이어베이스 초기화
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const stickersRef = ref(database, 'stickers'); 
+
+        const panel = document.getElementById('stickerPanel');
+        let currentSticker = null;
+
+        function getClientXY(e) {
+            if (e.touches && e.touches.length > 0) {
+                return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+            return { x: e.clientX, y: e.clientY };
+        }
+
+        window.startSticky = function(e) {
+            e.preventDefault();
+            const coords = getClientXY(e);
+
+            currentSticker = document.createElement('div');
+            currentSticker.classList.add('sticker', 'floating-sticker');
+            currentSticker.style.left = coords.x + 'px';
+            currentSticker.style.top = coords.y + 'px';
+            
+            document.body.appendChild(currentSticker);
+
+            document.addEventListener('mousemove', moveSticky);
+            document.addEventListener('mouseup', dropSticky);
+            document.addEventListener('touchmove', moveSticky, { passive: false });
+            document.addEventListener('touchend', dropSticky);
+        }
+
+        function moveSticky(e) {
+            if (!currentSticker) return;
+            if (e.cancelable) e.preventDefault(); 
+            
+            const coords = getClientXY(e);
+            currentSticker.style.left = coords.x + 'px';
+            currentSticker.style.top = coords.y + 'px';
+        }
+
+        function dropSticky(e) {
+            if (!currentSticker) return;
+
+            const stickerLeft = parseFloat(currentSticker.style.left);
+            const stickerTop = parseFloat(currentSticker.style.top);
+
+            const rect = panel.getBoundingClientRect();
+            const x = stickerLeft - rect.left;
+            const y = stickerTop - rect.top;
+
+            if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+                push(stickersRef, {
+                    x: x,
+                    y: y
+                });
+            }
+
+            currentSticker.remove();
+            currentSticker = null;
+
+            document.removeEventListener('mousemove', moveSticky);
+            document.removeEventListener('mouseup', dropSticky);
+            document.removeEventListener('touchmove', moveSticky);
+            document.removeEventListener('touchend', dropSticky);
+        }
+
+        // 실시간으로 DB에 스티커 추가되면 내 화면 포함 모두에게 그리기
+        onChildAdded(stickersRef, (snapshot) => {
+            const data = snapshot.val();
+            
+            const placedSticker = document.createElement('div');
+            placedSticker.classList.add('sticker', 'placed-sticker');
+            placedSticker.style.left = data.x + 'px';
+            placedSticker.style.top = data.y + 'px';
+            
+            panel.appendChild(placedSticker);
+        });
+    </script>
+
+</body>
+</html>
