@@ -21,6 +21,25 @@
         h1 { margin: 5px 0; font-size: 24px; }
         #status { font-size: 16px; color: #ffeb3b; margin-bottom: 10px; font-weight: bold; }
         .info { font-size: 14px; color: #aaa; margin-bottom: 10px; }
+        
+        /* 초기화 버튼 스타일 */
+        #resetRoomBtn {
+            margin-bottom: 15px;
+            padding: 8px 15px;
+            background-color: #ff3366;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: 0.2s;
+        }
+        #resetRoomBtn:hover {
+            background-color: #e02251;
+            transform: scale(1.05);
+        }
+        
         canvas {
             background-color: #111;
             border: 4px solid #444;
@@ -32,6 +51,10 @@
 
     <h1>💥 REALTIME SHOWDOWN 💥</h1>
     <div id="status">서버 연결 중...</div>
+    
+    <!-- [1단계] 화면에 초기화 버튼 추가 완료! -->
+    <button id="resetRoomBtn">방 강제 초기화 (유령유저 제거)</button>
+    
     <div class="info">이동: 방향키(▲▼◀▶) 또는 WASD | 발사: Spacebar 또는 Enter</div>
     <canvas id="gameCanvas" width="800" height="450"></canvas>
 
@@ -39,7 +62,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue, push, onChildAdded } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // 사용자의 실제 파이어베이스 설정값
         const firebaseConfig = {
             apiKey: "AIzaSyDaU42SyXM_k_Bm0qwADH-MqWnTeLbXCD0",
             authDomain: "dfdsfdsfd-18525.firebaseapp.com",
@@ -54,9 +76,16 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
         
-        // 내 세션 ID 생성 (유저 구별용 무작위 ID)
+        // [2단계] 자바스크립트 버튼 기능 연결 완료!
+        document.getElementById('resetRoomBtn').addEventListener('click', () => {
+            if (confirm("방이 꽉 찼거나 유령 유저가 있나요? 방을 완전히 초기화합니다.")) {
+                set(ref(database, 'game'), null); // 파이어베이스 데이터 삭제
+                location.reload(); // 내 창 새로고침
+            }
+        });
+
         const myId = "user_" + Math.random().toString(36).substr(2, 9);
-        let myRole = null; // 'p1' 또는 'p2' 결정될 예정
+        let myRole = null; 
 
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
@@ -69,35 +98,29 @@
         const shootDelay = 400;
         let lastShotTime = 0;
 
-        // 키 입력 리스너
         window.addEventListener('keydown', e => { keys[e.code] = true; });
         window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-        // 1. 서버에서 플레이어 참가 상황 감시 및 내 역할(P1, P2) 결정
         const playersRef = ref(database, 'game/players');
         onValue(playersRef, (snapshot) => {
             const data = snapshot.val() || {};
             playersData = data;
 
-            // 이미 내가 등록되어 있는지 확인
             const slots = Object.keys(data);
             const myExistingSlot = slots.find(slot => data[slot].id === myId);
 
             if (myExistingSlot) {
                 myRole = myExistingSlot;
             } else if (!data['p1']) {
-                // P1 자리가 비었으면 내가 P1
                 myRole = 'p1';
                 set(ref(database, 'game/players/p1'), { id: myId, x: 100, y: 225, hp: 100, dir: 1, color: '#00d2ff' });
             } else if (!data['p2']) {
-                // P2 자리가 비었으면 내가 P2
                 myRole = 'p2';
                 set(ref(database, 'game/players/p2'), { id: myId, x: 700, y: 225, hp: 100, dir: -1, color: '#ff3366' });
             } else {
-                myRole = 'spectator'; // 자리가 꽉 차면 관전자
+                myRole = 'spectator'; 
             }
 
-            // 상단 텍스트 표시 업데이트
             if (myRole === 'p1') statusEl.innerText = "당신은 🔵 1P (Blue) 입니다. 상대방을 기다리는 중...";
             if (myRole === 'p2') statusEl.innerText = "당신은 🔴 2P (Red) 입니다. 게임 시작!";
             if (data['p1'] && data['p2']) {
@@ -106,21 +129,18 @@
             }
         });
 
-        // 창을 닫으면 데이터베이스에서 내 캐릭터 삭제
         window.addEventListener('beforeunload', () => {
             if (myRole && myRole !== 'spectator') {
                 set(ref(database, `game/players/${myRole}`), null);
             }
         });
 
-        // 2. 실시간 총알 생성 이벤트 수신
         const bulletsRef = ref(database, 'game/bullets');
         onChildAdded(bulletsRef, (snapshot) => {
             const b = snapshot.val();
             localBullets.push(b);
         });
 
-        // 총알 발사 등록
         function fireBullet() {
             if (!myRole || myRole === 'spectator' || !playersData['p1'] || !playersData['p2']) return;
             const now = Date.now();
@@ -128,7 +148,6 @@
                 const me = playersData[myRole];
                 if (me.hp <= 0) return;
 
-                // 서버로 총알 정보 쏘기
                 push(bulletsRef, {
                     x: me.x + (20 * me.dir),
                     y: me.y,
@@ -140,7 +159,6 @@
             }
         }
 
-        // 게임 핵심 로직 업데이트
         function update() {
             if (!myRole || myRole === 'spectator' || !playersData[myRole]) return;
             
@@ -149,28 +167,23 @@
 
             let moved = false;
 
-            // 이동 제어 (WASD 또는 방향키 통합)
             if (keys['KeyW'] || keys['ArrowUp']) { if (me.y - 20 > 0) { me.y -= 4; moved = true; } }
             if (keys['KeyS'] || keys['ArrowDown']) { if (me.y + 20 < canvas.height) { me.y += 4; moved = true; } }
             if (keys['KeyA'] || keys['ArrowLeft']) { if (me.x - 20 > 0) { me.x -= 4; me.dir = -1; moved = true; } }
             if (keys['KeyD'] || keys['ArrowRight']) { if (me.x + 20 < canvas.width) { me.x += 4; me.dir = 1; moved = true; } }
             
-            // 총쏘기 제어 (스페이스바 또는 엔터)
             if (keys['Space'] || keys['Enter']) {
                 fireBullet();
             }
 
-            // 내가 움직였을 때만 실시간으로 파이어베이스 좌표 갱신
             if (moved) {
                 set(ref(database, `game/players/${myRole}`), me);
             }
 
-            // 총알 이동 및 충돌 연산 (P1 화면에서만 대표로 계산하여 데미지 적용)
             if (myRole === 'p1' && playersData['p2']) {
                 for (let i = localBullets.length - 1; i >= 0; i--) {
                     const b = localBullets[i];
                     
-                    // 1P 총알이 2P에게 맞았나 확인
                     if (b.owner === 'p1') {
                         let dist = Math.hypot(b.x - playersData['p2'].x, b.y - playersData['p2'].y);
                         if (dist < 20 && playersData['p2'].hp > 0) {
@@ -179,7 +192,6 @@
                             continue;
                         }
                     }
-                    // 2P 총알이 1P에게 맞았나 확인
                     if (b.owner === 'p2') {
                         let dist = Math.hypot(b.x - playersData['p1'].x, b.y - playersData['p1'].y);
                         if (dist < 20 && playersData['p1'].hp > 0) {
@@ -191,23 +203,19 @@
                 }
             }
 
-            // 게임 오버 체크 (리셋)
             if (playersData['p1'] && playersData['p2']) {
                 if (playersData['p1'].hp <= 0 || playersData['p2'].hp <= 0) {
                     const winner = playersData['p1'].hp <= 0 ? "2P (Red)" : "1P (Blue)";
                     alert(`🎉 ${winner} 승리! 게임을 재시작합니다.`);
-                    // DB 리셋
                     set(ref(database, 'game'), null);
                     localBullets = [];
                 }
             }
         }
 
-        // 화면 그리기
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 총알들 이동 및 그리기
             for (let i = localBullets.length - 1; i >= 0; i--) {
                 const b = localBullets[i];
                 b.x += b.dir * bulletSpeed;
@@ -223,7 +231,6 @@
                 ctx.fill();
             }
 
-            // 플레이어들 그리기
             Object.keys(playersData).forEach(slot => {
                 const p = playersData[slot];
                 if (p.hp <= 0) return;
@@ -233,11 +240,9 @@
                 ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
                 ctx.fill();
 
-                // 조준점 흰색 도트
                 ctx.fillStyle = '#fff';
                 ctx.fillRect(p.x + (20 * p.dir) - 2, p.y - 2, 4, 4);
 
-                // 체력바 표시
                 ctx.fillStyle = '#555';
                 ctx.fillRect(p.x - 20, p.y - 32, 40, 6);
                 ctx.fillStyle = p.color;
